@@ -146,8 +146,10 @@ export const Header: React.FC = () => {
 
           {/* Mobile Menu Trigger */}
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 rounded-xl bg-slate-100 text-slate-700"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -155,6 +157,42 @@ export const Header: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Mobile Slide-down Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-white border-t border-slate-200 p-4 space-y-3 animate-in slide-in-from-top duration-200 shadow-xl">
+          <div className="grid grid-cols-2 gap-2">
+            {categoryIcons.map((cat) => {
+              const IconComp = cat.icon;
+              return (
+                <Link
+                  key={cat.label}
+                  href={cat.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 hover:bg-[#F0F5FF] text-slate-800 font-bold text-xs border border-slate-200/80 transition-colors"
+                >
+                  <div className="p-1.5 rounded-lg bg-[#2874F0] text-white">
+                    <IconComp className="w-4 h-4" />
+                  </div>
+                  <span>{cat.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-700">
+            <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="hover:text-[#2874F0]">
+              About Us
+            </Link>
+            <Link href="/faq" onClick={() => setMobileMenuOpen(false)} className="hover:text-[#2874F0]">
+              FAQs & Warranty
+            </Link>
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-[#388E3C] hover:underline">
+              WhatsApp Support
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Flipkart Category Icon Navigation Row Below Header */}
       <div className="bg-white border-t border-slate-100 py-2 px-4 overflow-x-auto no-scrollbar">
