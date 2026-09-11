@@ -132,17 +132,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, priority = fa
           </Link>
         </div>
 
-        {/* Battery Health or Specs */}
-        {product.batteryHealth ? (
-          <div className="text-[11px] font-bold text-[#388E3C] flex items-center gap-1 bg-[#E8F5E9] px-2 py-0.5 rounded w-fit">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Battery Health: {product.batteryHealth}%</span>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 line-clamp-1 font-medium">
-            {product.processor} • {product.display.split(" ")[0]}
-          </p>
-        )}
+        {/* Battery Health or Specs + EMI Tag */}
+        <div className="flex items-center justify-between gap-1 flex-wrap">
+          {product.batteryHealth ? (
+            <div className="text-[11px] font-bold text-[#388E3C] flex items-center gap-1 bg-[#E8F5E9] px-2 py-0.5 rounded w-fit">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Battery: {product.batteryHealth}%</span>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 line-clamp-1 font-medium">
+              {product.processor} • {product.display.split(" ")[0]}
+            </p>
+          )}
+
+          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60 whitespace-nowrap">
+            EMI ₹{Math.round(product.price / 12).toLocaleString("en-IN")}/mo
+          </span>
+        </div>
 
         <div className="mt-auto pt-3 flex flex-col gap-2.5 border-t border-slate-100">
           
@@ -159,7 +165,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, priority = fa
             </div>
 
             {discountPct > 0 && (
-              <span className="text-xs font-bold text-[#388E3C]">
+              <span className="text-xs font-extrabold text-[#388E3C] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
                 {discountPct}% OFF
               </span>
             )}
