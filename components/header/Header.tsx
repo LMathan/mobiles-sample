@@ -19,14 +19,15 @@ import {
   RefreshCcw,
   CreditCard,
   Award,
-  Headphones
+  Headphones,
+  Bot
 } from "lucide-react";
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const { wishlist, inquiryItems, setIsSearchOpen, setIsInquiryOpen } = useApp();
+  const { wishlist, inquiryItems, setIsSearchOpen, setIsInquiryOpen, setIsChatbotOpen } = useApp();
   const whatsappUrl = generateGeneralWhatsAppUrl();
 
   const categoryIcons = [
@@ -131,6 +132,16 @@ export const Header: React.FC = () => {
                 {inquiryItems.length}
               </span>
             )}
+          </button>
+
+          {/* AI Product Assistant Button */}
+          <button
+            onClick={() => setIsChatbotOpen(true)}
+            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-gradient-to-r from-[#2874F0]/10 to-indigo-50 border border-blue-200 text-[#2874F0] hover:bg-blue-100 transition-colors flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
+            title="Ask AI Assistant about products, specs & prices"
+          >
+            <Bot className="w-5 h-5 text-[#2874F0]" />
+            <span className="hidden sm:inline">Ask AI</span>
           </button>
 
           {/* WhatsApp Direct CTA */}

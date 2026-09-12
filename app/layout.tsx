@@ -9,6 +9,8 @@ import { InquiryDrawer } from "@/components/cart/InquiryDrawer";
 import { SearchModal } from "@/components/header/SearchModal";
 import { ProductQuickView } from "@/components/products/ProductQuickView";
 import { CompareFloatingBar } from "@/components/compare/CompareFloatingBar";
+import { ProductChatbot } from "@/components/chatbot/ProductChatbot";
+import { ChatbotTriggerButton } from "@/components/chatbot/ChatbotTriggerButton";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -52,6 +54,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SearchModal />
           <ProductQuickView />
           <CompareFloatingBar />
+          <ProductChatbot />
+          <ChatbotTriggerButton />
         </AppProvider>
       </body>
     </html>

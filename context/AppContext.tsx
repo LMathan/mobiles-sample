@@ -27,6 +27,11 @@ interface AppContextType {
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
 
+  isChatbotOpen: boolean;
+  setIsChatbotOpen: (open: boolean) => void;
+  initialChatQuery: string | null;
+  openChatbotWithQuery: (query?: string) => void;
+
   quickViewProduct: Product | null;
   setQuickViewProduct: (product: Product | null) => void;
 
@@ -47,8 +52,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [initialChatQuery, setInitialChatQuery] = useState<string | null>(null);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const openChatbotWithQuery = (query?: string) => {
+    if (query) {
+      setInitialChatQuery(query);
+    }
+    setIsChatbotOpen(true);
+  };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -203,6 +217,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsInquiryOpen,
         isSearchOpen,
         setIsSearchOpen,
+        isChatbotOpen,
+        setIsChatbotOpen,
+        initialChatQuery,
+        openChatbotWithQuery,
         quickViewProduct,
         setQuickViewProduct,
         toastMessage,

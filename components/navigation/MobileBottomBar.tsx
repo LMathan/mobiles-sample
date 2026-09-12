@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { generateGeneralWhatsAppUrl } from "@/lib/whatsapp";
-import { Home, Grid, Search, Heart, MessageCircle } from "lucide-react";
+import { Home, Grid, Search, Heart, MessageCircle, Bot } from "lucide-react";
 
 export const MobileBottomBar: React.FC = () => {
   const pathname = usePathname();
-  const { wishlist, setIsSearchOpen } = useApp();
+  const { wishlist, setIsSearchOpen, setIsChatbotOpen } = useApp();
   const whatsappUrl = generateGeneralWhatsAppUrl();
 
   return (
@@ -38,13 +38,16 @@ export const MobileBottomBar: React.FC = () => {
           <span className="text-[10px] tracking-tight mt-0.5">Shop</span>
         </Link>
 
-        {/* Search Modal Trigger */}
+        {/* AI Assistant Chatbot Button */}
         <button
-          onClick={() => setIsSearchOpen(true)}
-          className="flex flex-col items-center justify-center py-1 text-slate-500 hover:text-slate-900 transition-colors"
+          onClick={() => setIsChatbotOpen(true)}
+          className="flex flex-col items-center justify-center py-1 text-[#2874F0] font-extrabold transition-colors cursor-pointer"
         >
-          <Search className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight mt-0.5">Search</span>
+          <div className="relative">
+            <Bot className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+          </div>
+          <span className="text-[10px] tracking-tight mt-0.5">AI Assist</span>
         </button>
 
         {/* Wishlist */}
