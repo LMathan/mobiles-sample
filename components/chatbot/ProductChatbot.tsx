@@ -18,14 +18,19 @@ import {
   ShoppingBag,
   MessageCircle,
   Eye,
-  Trash2,
   ChevronRight,
   ShieldCheck,
   Zap,
-  PhoneCall,
+  ArrowRight,
+  Mic,
+  MicOff,
+  Calculator,
+  RotateCcw,
   CheckCircle2,
-  HelpCircle,
-  ArrowRight
+  Cpu,
+  Battery,
+  Award,
+  DollarSign
 } from "lucide-react";
 
 interface ChatMessage {
@@ -35,6 +40,7 @@ interface ChatMessage {
   products?: Product[];
   timestamp: string;
   quickPrompts?: string[];
+  widgetType?: "exchange" | "emi";
 }
 
 export const ProductChatbot: React.FC = () => {
@@ -50,20 +56,27 @@ export const ProductChatbot: React.FC = () => {
 
   const [inputQuery, setInputQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  
+  // Interactive Exchange Estimator State inside chat
+  const [exchangeBrand, setExchangeBrand] = useState("Apple");
+  const [exchangeCondition, setExchangeCondition] = useState("Good");
+  const [estimatedValue, setEstimatedValue] = useState<number | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const defaultInitialMessages: ChatMessage[] = [
     {
       id: "welcome-1",
       sender: "bot",
-      text: "👋 **Hello! Welcome to Nova Mobile Assistant.**\n\nI am your instant AI guide for all smartphones in our store! You can ask me about:\n- 📱 Product prices, stock, & full specifications\n- ⚔️ Comparing two phones side-by-side\n- 🏷️ Demo vs New phone condition details\n- 💳 Monthly EMI calculators & trade-in exchange offers\n- 📍 Our Tamil Nadu store locations",
+      text: "👋 **Vanakkam & Welcome to Nova Mobile Assistant!**\n\nI am your instant AI guide for all smartphones in our store! Ask me anything about:\n- 📱 Prices, live stock, & 100% specs Q&A\n- ⚔️ Side-by-side phone comparisons\n- 🏷️ Demo vs New phone condition & warranty\n- 🔄 Old phone exchange value calculator\n- 💳 No-Cost EMI monthly breakdowns\n- 📍 Verified Tamil Nadu store locations",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       quickPrompts: [
+        "Calculate Exchange Value 🔄",
         "Best Camera Phones 📸",
         "Phones under ₹50,000 💰",
         "Compare iPhone 15 Pro vs S24 Ultra ⚔️",
         "Demo Condition Warranty? 🛡️",
-        "How Exchange & EMI Works? 💳",
         "Store Locations 📍"
       ]
     }
@@ -87,10 +100,91 @@ export const ProductChatbot: React.FC = () => {
 
   if (!isChatbotOpen) return null;
 
+  // Voice Input Speech-to-Text Handler
+  const toggleVoiceInput = () => {
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      showToast("Voice input is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        showToast("Listening... Speak your phone query");
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInputQuery(transcript);
+        setIsListening(false);
+        handleUserSubmit(transcript);
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+        showToast("Voice recognition error. Please type your query.");
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (e) {
+      setIsListening(false);
+      showToast("Voice microphone disabled or unsupported.");
+    }
+  };
+
   // Clear chat history
   const handleClearChat = () => {
     setMessages(defaultInitialMessages);
-    showToast("Chat reset");
+    showToast("Chat conversation reset");
+  };
+
+  // Calculate Exchange Estimate
+  const handleCalculateExchange = () => {
+    let baseVal = 12000;
+    if (exchangeBrand === "Apple") baseVal = 28000;
+    else if (exchangeBrand === "Samsung") baseVal = 22000;
+    else if (exchangeBrand === "OnePlus") baseVal = 16000;
+    else if (exchangeBrand === "Google Pixel") baseVal = 18000;
+
+    let multiplier = 1;
+    if (exchangeCondition === "Flawless") multiplier = 1.25;
+    if (exchangeCondition === "Good") multiplier = 1.0;
+    if (exchangeCondition === "Fair") multiplier = 0.75;
+
+    const val = Math.round(baseVal * multiplier);
+    setEstimatedValue(val);
+
+    const botMsg: ChatMessage = {
+      id: `bot-exchange-${Date.now()}`,
+      sender: "bot",
+      text: `🎉 **Estimated Exchange Value for your ${exchangeBrand} (${exchangeCondition} condition):**\n\n` +
+        `💰 **Up to ${formatINR(val)} Instant Exchange Discount!**\n\n` +
+        `You can apply this exchange discount on any phone in our store. Show up at any Nova Mobile store in Chennai, Coimbatore, or Madurai for instant physical verification & trade-in!`,
+      products: PRODUCTS_DATA.filter(p => p.exchangeAvailable).slice(0, 3),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      quickPrompts: ["Book Free Store Trade-In Verification", "Show Phones under ₹50,000"]
+    };
+
+    setMessages((prev) => [...prev, botMsg]);
   };
 
   // User message submit handler
@@ -114,14 +208,25 @@ export const ProductChatbot: React.FC = () => {
       const botResponse = generateAIResponse(textToSend);
       setMessages((prev) => [...prev, botResponse]);
       setIsTyping(false);
-    }, 600);
+    }, 550);
   };
 
   // Smart Query Engine matching user queries with live products, FAQs, and stores
   const generateAIResponse = (query: string): ChatMessage => {
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
 
-    // 1. Comparison Intent
+    // 1. Exchange Intent & Widget Trigger
+    if (q.includes("calculate exchange") || q.includes("trade-in value") || q.includes("old phone value") || q.includes("exchange calculator")) {
+      return {
+        id: `bot-${Date.now()}`,
+        sender: "bot",
+        text: `🔄 **Nova Instant Old Phone Exchange Estimator:**\n\nSelect your old smartphone brand and physical condition below to calculate your instant trade-in value:`,
+        widgetType: "exchange",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    }
+
+    // 2. Comparison Intent
     if (q.includes("vs") || q.includes("compare")) {
       const matchedProducts = PRODUCTS_DATA.filter((p) =>
         q.includes(p.name.toLowerCase()) ||
@@ -130,7 +235,8 @@ export const ProductChatbot: React.FC = () => {
         (q.includes("iphone") && p.brand === "Apple") ||
         (q.includes("samsung") && p.brand === "Samsung") ||
         (q.includes("s24") && p.name.includes("S24")) ||
-        (q.includes("15 pro") && p.name.includes("15 Pro"))
+        (q.includes("15 pro") && p.name.includes("15 Pro")) ||
+        (q.includes("oneplus") && p.brand === "OnePlus")
       );
 
       if (matchedProducts.length >= 2) {
@@ -138,99 +244,134 @@ export const ProductChatbot: React.FC = () => {
         return {
           id: `bot-${Date.now()}`,
           sender: "bot",
-          text: `🔍 **Comparison breakdown between ${p1.name} & ${p2.name}:**\n\n` +
+          text: `⚔️ **Side-by-Side Comparison: ${p1.name} vs ${p2.name}:**\n\n` +
             `• **Price**: ${p1.name} (${formatINR(p1.price)}) vs ${p2.name} (${formatINR(p2.price)})\n` +
+            `• **Condition**: ${p1.condition} vs ${p2.condition}\n` +
+            `• **RAM & Storage**: ${p1.ram} / ${p1.storage} vs ${p2.ram} / ${p2.storage}\n` +
             `• **Display**: ${p1.display} vs ${p2.display}\n` +
             `• **Processor**: ${p1.processor} vs ${p2.processor}\n` +
             `• **Camera**: ${p1.camera} vs ${p2.camera}\n` +
             `• **Battery**: ${p1.battery} vs ${p2.battery}\n\n` +
-            `Both are available in stock with warranty! Tap below to view details or save for inquiry.`,
+            `Both phones are in stock with Nova Store warranty! Tap below to view full details or save to your inquiry list.`,
           products: [p1, p2],
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          quickPrompts: [`Check EMI for ${p1.name}`, `Check EMI for ${p2.name}`, "Ask Store Executive on WhatsApp"]
         };
       }
     }
 
-    // 2. Demo Condition & Warranty Queries
-    if (q.includes("demo") || q.includes("used") || q.includes("condition") || q.includes("refurbished") || q.includes("warranty")) {
+    // 3. Demo Condition & Warranty Queries
+    if (q.includes("demo") || q.includes("used") || q.includes("condition") || q.includes("refurbished") || q.includes("warranty") || q.includes("second hand")) {
       const demoProducts = PRODUCTS_DATA.filter(p => p.condition === "DEMO").slice(0, 3);
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
         text: `🏷️ **Nova Certified Demo Phones Explained:**\n\n` +
-          `• **What are Demo Devices?** Showcase models displayed in authorized retail stores with zero cosmetic defects or heavy usage.\n` +
-          `• **Quality Guarantee**: 100% genuine parts, full multi-point diagnostic test passed.\n` +
-          `• **Warranty**: Includes 6 Months Nova Store Warranty + any remaining brand warranty.\n` +
-          `• **In-Box**: Comes with box and essential charging accessories.\n\n` +
+          `• **What are Demo Devices?** Showcase display models from authorized retail stores with zero scratches or heavy usage.\n` +
+          `• **Quality Guarantee**: 100% genuine original components, 40+ point diagnostic test passed.\n` +
+          `• **Warranty**: Includes 6 Months Nova Store Warranty + any remaining official manufacturer warranty.\n` +
+          `• **In-Box**: Original box with woven charging cable and SIM ejector tool.\n\n` +
           `Here are our top trending Demo Deals right now:`,
         products: demoProducts,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickPrompts: ["Show iPhones", "Show Demo Deals", "How EMI works?"]
+        quickPrompts: ["Show Demo iPhones 🍏", "Show Demo Samsung Deals 📱", "Calculate Exchange Value 🔄"]
       };
     }
 
-    // 3. EMI and Exchange Queries
-    if (q.includes("emi") || q.includes("finance") || q.includes("monthly") || q.includes("exchange") || q.includes("trade")) {
+    // 4. RAM / Storage Filter Intent
+    if (q.includes("12gb ram") || q.includes("12gb") || q.includes("16gb") || q.includes("256gb") || q.includes("512gb")) {
+      const matched = PRODUCTS_DATA.filter(p =>
+        (q.includes("12gb") && (p.ram?.includes("12GB") || p.ram?.includes("16GB"))) ||
+        (q.includes("256gb") && p.storage.includes("256GB")) ||
+        (q.includes("512gb") && p.storage.includes("512GB"))
+      ).slice(0, 4);
+
+      if (matched.length > 0) {
+        return {
+          id: `bot-${Date.now()}`,
+          sender: "bot",
+          text: `🚀 **High Storage & High Performance RAM Smartphones:**\n\nThese devices deliver ultra-smooth multitasking, high-FPS gaming, and massive storage for photos & 4K video:`,
+          products: matched,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+      }
+    }
+
+    // 5. EMI & Finance Queries
+    if (q.includes("emi") || q.includes("finance") || q.includes("monthly") || q.includes("installment") || q.includes("credit card")) {
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: `💳 **Exchange & EMI Schemes at Nova Mobile:**\n\n` +
-          `• **Instant Old Phone Exchange**: Get up to ₹45,000 instant credit for your old smartphone (Apple, Samsung, OnePlus, Vivo, etc.).\n` +
-          `• **Easy No-Cost EMI**: Available on HDFC, ICICI, SBI, Axis, and Bajaj Finserv cardless credit.\n` +
-          `• **Monthly Installment**: EMI starts from as low as **₹1,499/month** on select smartphones.\n\n` +
-          `Select any smartphone on our store to see its exact monthly EMI options!`,
+        text: `💳 **No-Cost EMI & Finance Options:**\n\n` +
+          `• **Easy Cardless & Card EMI**: Instant approval on HDFC, ICICI, SBI, Axis, IDFC, and Bajaj Finserv.\n` +
+          `• **Starting Installment**: EMI starts from as low as **₹1,499 / month**.\n` +
+          `• **0% Interest Options**: 3, 6, 9, and 12-month tenure schemes available.\n\n` +
+          `Here are popular phones available with low monthly EMI:`,
         products: PRODUCTS_DATA.filter(p => p.emiAvailable).slice(0, 3),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickPrompts: ["Best camera phones under 50k", "Show Apple iPhones", "WhatsApp Store Executive"]
+        quickPrompts: ["Calculate Exchange Value 🔄", "Store Locations 📍", "WhatsApp Store Executive"]
       };
     }
 
-    // 4. Store Locations Query
-    if (q.includes("store") || q.includes("location") || q.includes("chennai") || q.includes("coimbatore") || q.includes("madurai") || q.includes("address") || q.includes("contact")) {
-      const storeList = STORES_DATA.map(s => `• **${s.name} (${s.city})**: ${s.address} | Hours: ${s.hours}`).join("\n\n");
+    // 6. Tamil Nadu Store Locations Query
+    if (q.includes("store") || q.includes("location") || q.includes("chennai") || q.includes("coimbatore") || q.includes("madurai") || q.includes("address") || q.includes("contact") || q.includes("tamil nadu")) {
+      const storeList = STORES_DATA.map(s => `• **${s.name} (${s.city})**:\n  📍 ${s.address}\n  ⏰ ${s.hours}`).join("\n\n");
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: `📍 **Nova Mobile Verified Retail Outlets:**\n\n${storeList}\n\nAll stores feature live physical experience desks, instant trade-in counters, and on-spot EMI approvals!`,
+        text: `📍 **Nova Mobile Outlets across Tamil Nadu:**\n\n${storeList}\n\nAll stores feature physical experience counters, instant trade-in desks, and on-spot EMI approvals!`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickPrompts: ["WhatsApp Store Executive", "Show All Products", "Demo Phone Warranty"]
+        quickPrompts: ["WhatsApp Executive", "Show All Products", "Demo Phone Warranty"]
       };
     }
 
-    // 5. Price range queries (e.g., under 50k, 50000, 30000, 100000)
+    // 7. Price range queries
     let maxPriceFilter: number | null = null;
-    if (q.includes("under 30k") || q.includes("under 30000") || q.includes("30k") || q.includes("30,000")) maxPriceFilter = 30000;
-    else if (q.includes("under 50k") || q.includes("under 50000") || q.includes("50k") || q.includes("50,000")) maxPriceFilter = 50000;
-    else if (q.includes("under 60k") || q.includes("under 60000") || q.includes("60k")) maxPriceFilter = 60000;
-    else if (q.includes("under 1 lakh") || q.includes("under 100000") || q.includes("100000")) maxPriceFilter = 100000;
+    if (q.includes("under 30k") || q.includes("under 30000") || q.includes("30k") || q.includes("30000")) maxPriceFilter = 30000;
+    else if (q.includes("under 50k") || q.includes("under 50000") || q.includes("50k") || q.includes("50000")) maxPriceFilter = 50000;
+    else if (q.includes("under 70k") || q.includes("under 70000") || q.includes("70k")) maxPriceFilter = 70000;
+    else if (q.includes("under 1 lakh") || q.includes("under 100000") || q.includes("1 lakh")) maxPriceFilter = 100000;
 
     if (maxPriceFilter) {
       const budgetProducts = PRODUCTS_DATA.filter(p => p.price <= maxPriceFilter!).slice(0, 4);
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: `💰 **Here are the best smartphones priced under ${formatINR(maxPriceFilter)}:**\n\nAll models include 100% original box, warranty, and available EMI/exchange deals.`,
+        text: `💰 **Best Smartphones under ${formatINR(maxPriceFilter)}:**\n\nAll devices include original box, warranty, and available EMI/exchange options.`,
         products: budgetProducts,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        quickPrompts: ["Calculate Exchange Value 🔄", "Compare these models ⚔️"]
       };
     }
 
-    // 6. Camera / Performance / Category Intent
-    if (q.includes("camera") || q.includes("photo") || q.includes("zoom") || q.includes("200mp") || q.includes("video")) {
+    // 8. Camera / Video Intent
+    if (q.includes("camera") || q.includes("photo") || q.includes("zoom") || q.includes("200mp") || q.includes("video") || q.includes("portrait")) {
       const cameraProducts = PRODUCTS_DATA.filter(p => p.tags.includes("Camera King") || p.category === "Best Camera" || p.camera.includes("200MP") || p.brand === "Apple").slice(0, 4);
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: `📸 **Top Recommended Camera Smartphones:**\n\nThese phones feature pro-grade optical zoom, 4K/8K video recording, high-resolution sensors, and advanced night mode portrait processing.`,
+        text: `📸 **Top Recommended Camera Smartphones:**\n\nFeatures pro-grade optical zoom, 4K/8K video recording, periscope lenses, and advanced night portrait modes:`,
         products: cameraProducts,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
     }
 
-    // 7. Brand / Specific Model Search Matcher
+    // 9. Tamil / Hinglish / Greetings Intent
+    if (q.includes("vanakkam") || q.includes("hello") || q.includes("hi") || q.includes("namaste") || q.includes("bro") || q.includes("good morning")) {
+      return {
+        id: `bot-${Date.now()}`,
+        sender: "bot",
+        text: `👋 **Vanakkam! Welcome to Nova Mobile.**\n\nHow can I help you today? You can search for smartphones, ask for live prices, compare models, or check trade-in exchange values!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        quickPrompts: ["Best Camera Phones 📸", "Phones under ₹50,000 💰", "Calculate Exchange Value 🔄", "Demo Warranty 🛡️"]
+      };
+    }
+
+    // 10. Brand / Model Matcher
     const brandMatches = PRODUCTS_DATA.filter((p) =>
       p.name.toLowerCase().includes(q) ||
       p.brand.toLowerCase().includes(q) ||
+      p.model.toLowerCase().includes(q) ||
       p.description.toLowerCase().includes(q) ||
       p.tags.some((tag) => tag.toLowerCase().includes(q))
     );
@@ -240,14 +381,14 @@ export const ProductChatbot: React.FC = () => {
       return {
         id: `bot-${Date.now()}`,
         sender: "bot",
-        text: `✅ Found **${brandMatches.length} matching smartphone${brandMatches.length === 1 ? '' : 's'}** for "${query}":`,
+        text: `✅ Found **${brandMatches.length} smartphone${brandMatches.length === 1 ? '' : 's'}** matching "${query}":`,
         products: matched,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickPrompts: ["Compare prices", "Check EMI options", "Store Locations"]
+        quickPrompts: ["Compare prices", "Calculate Exchange Value 🔄", "Store Locations 📍"]
       };
     }
 
-    // 8. General FAQ Lookup Matcher
+    // 11. FAQ Lookup Matcher
     const matchedFaq = FAQS_DATA.find((faq) =>
       faq.question.toLowerCase().includes(q) ||
       q.split(" ").some(word => word.length > 3 && faq.question.toLowerCase().includes(word))
@@ -259,19 +400,19 @@ export const ProductChatbot: React.FC = () => {
         sender: "bot",
         text: `💡 **${matchedFaq.question}**\n\n${matchedFaq.answer}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        quickPrompts: ["Show Demo Phones", "Ask WhatsApp Support", "Phones under 50k"]
+        quickPrompts: ["Show Demo Phones", "Calculate Exchange Value 🔄", "WhatsApp Executive"]
       };
     }
 
-    // Default Helpful Fallback
+    // Default Fallback
     const featuredSample = PRODUCTS_DATA.filter(p => p.featured).slice(0, 3);
     return {
       id: `bot-${Date.now()}`,
       sender: "bot",
-      text: `I'm happy to help you with **"${query}"**!\n\nYou can ask me specific questions like:\n- *"Show me iPhone 15 Pro Max specs"* \n- *"What is the warranty on demo phones?"*\n- *"Which phone has the best battery life?"*\n- *"Compare S24 Ultra and iPhone 15"*`,
+      text: `I'm here to help you with **"${query}"**!\n\nYou can ask me specific questions like:\n- *"Show me iPhone 15 Pro Max specs"* \n- *"Calculate exchange value for my old phone"*\n- *"What is demo phone warranty?"*\n- *"Compare S24 Ultra and iPhone 15 Pro"*`,
       products: featuredSample,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      quickPrompts: ["Best Camera Phones", "Phones under ₹50,000", "Compare iPhone 15 vs S24 Ultra", "Demo Warranty Details"]
+      quickPrompts: ["Calculate Exchange Value 🔄", "Best Camera Phones 📸", "Phones under ₹50,000 💰", "Demo Warranty 🛡️"]
     };
   };
 
@@ -284,16 +425,16 @@ export const ProductChatbot: React.FC = () => {
       <div className="fixed inset-0" onClick={() => setIsChatbotOpen(false)} />
 
       {/* Chat Window Box */}
-      <div className="relative w-full sm:w-[440px] h-[90vh] sm:h-[640px] bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col z-10 border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+      <div className="relative w-full sm:w-[460px] h-[92vh] sm:h-[660px] bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col z-10 border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
         
         {/* Chatbot Header */}
         <div className="bg-slate-900 text-white p-4 flex items-center justify-between border-b border-slate-800 shadow-md">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
-                <Bot className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+                <Bot className="w-6 h-6 animate-pulse" />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -305,7 +446,7 @@ export const ProductChatbot: React.FC = () => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-300 flex items-center gap-1">
-                <span>Instant product Q&A & store helper</span>
+                <span>Instant product Q&A, specs & exchange assistant</span>
               </p>
             </div>
           </div>
@@ -337,7 +478,7 @@ export const ProductChatbot: React.FC = () => {
             >
               {/* Message Bubble */}
               <div
-                className={`max-w-[88%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-sm ${
+                className={`max-w-[90%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-sm ${
                   msg.sender === "user"
                     ? "bg-[#2874F0] text-white rounded-br-none font-medium"
                     : "bg-white text-slate-800 border border-slate-200 rounded-bl-none font-normal"
@@ -358,6 +499,53 @@ export const ProductChatbot: React.FC = () => {
                   })}
                 </div>
 
+                {/* Interactive Exchange Estimator Widget inside chat bubble */}
+                {msg.widgetType === "exchange" && (
+                  <div className="mt-3 p-3 bg-blue-50/80 rounded-xl border border-blue-200 space-y-2.5 text-slate-900">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
+                          Old Phone Brand:
+                        </label>
+                        <select
+                          value={exchangeBrand}
+                          onChange={(e) => setExchangeBrand(e.target.value)}
+                          className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="Apple">Apple iPhone</option>
+                          <option value="Samsung">Samsung Galaxy</option>
+                          <option value="OnePlus">OnePlus</option>
+                          <option value="Google Pixel">Google Pixel</option>
+                          <option value="Other">Vivo / Oppo / Xiaomi</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
+                          Physical Condition:
+                        </label>
+                        <select
+                          value={exchangeCondition}
+                          onChange={(e) => setExchangeCondition(e.target.value)}
+                          className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="Flawless">Flawless (No Scratches)</option>
+                          <option value="Good">Good (Minor Wear)</option>
+                          <option value="Fair">Fair (Scratch Marks)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleCalculateExchange}
+                      className="w-full py-2 bg-[#2874F0] hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>Calculate Instant Trade-In Credit</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Timestamp */}
                 <div
                   className={`text-[9px] mt-2 text-right ${
@@ -371,73 +559,88 @@ export const ProductChatbot: React.FC = () => {
               {/* Embedded Product Cards List inside Bot Message */}
               {msg.products && msg.products.length > 0 && (
                 <div className="w-full pl-2 space-y-2 mt-2">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Recommended Products ({msg.products.length}):
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-[#2874F0]" />
+                    <span>Recommended Products ({msg.products.length}):</span>
                   </span>
                   
                   <div className="grid grid-cols-1 gap-2.5">
                     {msg.products.map((product) => {
-                      const prodWhatsappUrl = generateProductWhatsAppUrl(product);
                       const inInquiry = isInInquiry(product.id);
 
                       return (
                         <div
                           key={product.id}
-                          className="bg-white rounded-xl p-3 border border-slate-200 hover:border-blue-300 shadow-xs flex items-center justify-between gap-3 transition-all"
+                          className="bg-white rounded-xl p-3 border border-slate-200 hover:border-blue-300 shadow-xs flex flex-col gap-2 transition-all"
                         >
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-14 h-14 object-cover rounded-lg bg-slate-100 flex-shrink-0"
-                          />
+                          <div className="flex items-center justify-between gap-3">
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-14 h-14 object-cover rounded-lg bg-slate-100 flex-shrink-0"
+                            />
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase truncate">
-                                {product.brand}
-                              </span>
-                              <ConditionBadge condition={product.condition} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase truncate">
+                                  {product.brand}
+                                </span>
+                                <ConditionBadge condition={product.condition} />
+                              </div>
+
+                              <h4 className="font-extrabold text-xs text-slate-900 truncate">
+                                {product.name}
+                              </h4>
+
+                              <div className="flex items-baseline gap-1.5 mt-0.5">
+                                <span className="text-xs font-black text-[#2874F0]">
+                                  {formatINR(product.price)}
+                                </span>
+                                {product.originalPrice && (
+                                  <span className="text-[10px] line-through text-slate-400">
+                                    {formatINR(product.originalPrice)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
-                            <h4 className="font-extrabold text-xs text-slate-900 truncate">
-                              {product.name}
-                            </h4>
+                            <div className="flex flex-col gap-1.5 flex-shrink-0">
+                              <button
+                                onClick={() => setQuickViewProduct(product)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3 text-slate-600" />
+                                <span>Specs</span>
+                              </button>
 
-                            <div className="flex items-baseline gap-1.5 mt-0.5">
-                              <span className="text-xs font-black text-[#2874F0]">
-                                {formatINR(product.price)}
-                              </span>
-                              {product.originalPrice && (
-                                <span className="text-[10px] line-through text-slate-400">
-                                  {formatINR(product.originalPrice)}
-                                </span>
-                              )}
+                              <button
+                                onClick={() => {
+                                  addToInquiry(product);
+                                  showToast(`${product.name} added to Enquiry list`);
+                                }}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                                  inInquiry
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-[#2874F0] text-white hover:bg-blue-700"
+                                }`}
+                              >
+                                <ShoppingBag className="w-3 h-3" />
+                                <span>{inInquiry ? "Saved" : "+Enquire"}</span>
+                              </button>
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-1.5 flex-shrink-0">
-                            <button
-                              onClick={() => setQuickViewProduct(product)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                            >
-                              <Eye className="w-3 h-3 text-slate-600" />
-                              <span>View</span>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                addToInquiry(product);
-                                showToast(`${product.name} added to Enquiry list`);
-                              }}
-                              className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
-                                inInquiry
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-[#2874F0] text-white hover:bg-blue-700"
-                              }`}
-                            >
-                              <ShoppingBag className="w-3 h-3" />
-                              <span>{inInquiry ? "Saved" : "+Enquire"}</span>
-                            </button>
+                          {/* Quick Spec Pills */}
+                          <div className="flex flex-wrap gap-1 pt-1.5 border-t border-slate-100 text-[10px] text-slate-600 font-medium">
+                            <span className="bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <Cpu className="w-2.5 h-2.5 text-blue-600" />
+                              <span>{product.ram ? `${product.ram} / ` : ''}{product.storage}</span>
+                            </span>
+                            {product.emiStartsAt && (
+                              <span className="bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
+                                EMI: {formatINR(product.emiStartsAt)}/mo
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
@@ -479,7 +682,7 @@ export const ProductChatbot: React.FC = () => {
         <div className="bg-emerald-50 px-4 py-2 border-t border-emerald-100 flex items-center justify-between text-xs text-emerald-800 font-medium">
           <div className="flex items-center gap-1.5 truncate">
             <MessageCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span className="truncate">Need custom deals or store manager support?</span>
+            <span className="truncate">Need store manager support or custom quote?</span>
           </div>
           <a
             href={whatsappGeneralUrl}
@@ -494,12 +697,25 @@ export const ProductChatbot: React.FC = () => {
 
         {/* Input Controls Footer */}
         <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
+          {/* Voice Microphone Button */}
+          <button
+            onClick={toggleVoiceInput}
+            title={isListening ? "Listening..." : "Click to speak voice query"}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer flex-shrink-0 ${
+              isListening
+                ? "bg-rose-500 text-white animate-pulse"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+            }`}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+
           <input
             type="text"
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleUserSubmit()}
-            placeholder="Ask about iPhone 15, EMI, warranty, compare..."
+            placeholder={isListening ? "Listening to your voice..." : "Ask about prices, RAM, EMI, exchange..."}
             className="flex-1 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2874F0] focus:bg-white transition-all"
           />
 
